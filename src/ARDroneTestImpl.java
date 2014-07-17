@@ -7,19 +7,35 @@
  * $Id$
  */
 
-import RTC.CameraImage;
-import RTC.TimedVelocity3D;
-import RTC.TimedDouble;
-import RTC.TimedOrientation3D;
+import java.awt.BorderLayout;
+import java.awt.Graphics;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
+import java.awt.image.BufferedImage;
+
+import javax.swing.JComponent;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JTextField;
+
 import jp.go.aist.rtm.RTC.DataFlowComponentBase;
 import jp.go.aist.rtm.RTC.Manager;
+import jp.go.aist.rtm.RTC.port.CorbaConsumer;
+import jp.go.aist.rtm.RTC.port.CorbaPort;
 import jp.go.aist.rtm.RTC.port.InPort;
 import jp.go.aist.rtm.RTC.port.OutPort;
 import jp.go.aist.rtm.RTC.util.DataRef;
-import jp.go.aist.rtm.RTC.port.CorbaConsumer;
-import jp.go.aist.rtm.RTC.port.CorbaPort;
-import RTC.ReturnCode_t;
 import ssr.DroneService;
+import RTC.CameraImage;
+import RTC.ReturnCode_t;
+import RTC.TimedDouble;
+import RTC.TimedOrientation3D;
+import RTC.TimedVelocity3D;
 
 /*!
  * @class ARDroneTestImpl
@@ -28,7 +44,9 @@ import ssr.DroneService;
  */
 public class ARDroneTestImpl extends DataFlowComponentBase {
 
-  /*!
+  private DronePane panel;
+
+	/*!
    * @brief constructor
    * @param manager Maneger Object
    */
@@ -47,7 +65,7 @@ public class ARDroneTestImpl extends DataFlowComponentBase {
         m_orientation_val = new TimedOrientation3D();
         m_orientation = new DataRef<TimedOrientation3D>(m_orientation_val);
         m_orientationIn = new InPort<TimedOrientation3D>("orientation", m_orientation);
-        m_targetVelocity_val = new TimedVelocity3D();
+        m_targetVelocity_val = new TimedVelocity3D(new RTC.Time(0,0), new RTC.Velocity3D(0, 0, 0, 0, 0, 0));
         m_targetVelocity = new DataRef<TimedVelocity3D>(m_targetVelocity_val);
         m_targetVelocityOut = new OutPort<TimedVelocity3D>("targetVelocity", m_targetVelocity);
         m_DroneServicePort = new CorbaPort("DroneService");
@@ -83,7 +101,60 @@ public class ARDroneTestImpl extends DataFlowComponentBase {
         // Set CORBA Service Ports
         addPort(m_DroneServicePort);
         // </rtc-template>
-        return super.onInitialize();
+        gui = new JFrame();
+    	gui.addKeyListener(new KeyListener() {
+
+			@Override
+			public void keyTyped(KeyEvent e) {
+				int code = e.getKeyCode();
+				switch(code) {
+				case KeyEvent.VK_T:
+					takeOff();
+					break;
+				case KeyEvent.VK_L:
+					landing();
+					break;
+				}
+			}
+
+			@Override
+			public void keyPressed(KeyEvent e) {
+				// TODO Auto-generated method stub
+				
+					int code = e.getKeyCode();
+					switch(code) {
+					case KeyEvent.VK_T:
+						takeOff();
+						break;
+					case KeyEvent.VK_L:
+						landing();
+						break;
+						
+					case KeyEvent.VK_RIGHT:
+						move3D(0, 0, 0, -10);
+						break;
+					case KeyEvent.VK_LEFT:
+						move3D(0, 0, 0, 10);
+						break;
+					case KeyEvent.VK_UP:
+						move3D(10, 0, 0, 0);
+						break;
+					case KeyEvent.VK_DOWN:
+						move3D(-10, 0, 0, 0);
+						break;
+					}
+			}
+
+			@Override
+			public void keyReleased(KeyEvent e) {
+				// TODO Auto-generated method stub
+				
+			}
+			
+		});
+    	gui.setSize(800, 600);
+
+    	return super.onInitialize();
     }
 
     /***
@@ -145,6 +216,11 @@ public class ARDroneTestImpl extends DataFlowComponentBase {
      */
     @Override
     protected ReturnCode_t onActivated(int ec_id) {
+        
+    	
+    	this.panel = new DronePane(this);
+    	gui.getContentPane().add(panel, BorderLayout.CENTER);
+    	gui.setVisible(true);
         return super.onActivated(ec_id);
     }
 
@@ -161,6 +237,7 @@ public class ARDroneTestImpl extends DataFlowComponentBase {
      */
     @Override
     protected ReturnCode_t onDeactivated(int ec_id) {
+    	gui.setVisible(false);
         return super.onDeactivated(ec_id);
     }
 
@@ -177,9 +254,31 @@ public class ARDroneTestImpl extends DataFlowComponentBase {
      */
     @Override
     protected ReturnCode_t onExecute(int ec_id) {
+    	if (this.m_cameraIn.isNew()) {
+    		m_cameraIn.read();
+    		//System.out.println("Width  =" + m_in.v.width);
+    		//System.out.println("Height =" + m_in.v.height);
+    		if (img == null) {
+    			img = new BufferedImage(m_camera.v.width, m_camera.v.height, BufferedImage.TYPE_INT_RGB);
+    		}
+    		for (int y = 0;y < m_camera.v.height;y++) {
+    			for (int x = 0;x < m_camera.v.width;x++) {
+    				int index = y * m_camera.v.width + x;
+    				byte r = m_camera.v.pixels[index*3 + 2];
+    				byte g = m_camera.v.pixels[index*3 + 1];
+    				byte b = m_camera.v.pixels[index*3 + 0];
+    				int rgb = (0x00FF & (int)r) << 16 | (0x00FF & (int)g) << 8 | (0x00FF & (int)b);
+    				img.setRGB(x, y, rgb);
+    			}
+    		}
+    		panel.img = img;
+    		panel.repaint();
+    	}
+    	
         return super.onExecute(ec_id);
     }
 
+    private BufferedImage img;
     /***
      *
      * The aborting action when main logic error occurred.
@@ -322,5 +421,135 @@ public class ARDroneTestImpl extends DataFlowComponentBase {
     
     // </rtc-template>
 
+    JFrame gui;
+    
+    private boolean flight;
+    public boolean isFlight() {return flight;}
+    public void toggleFlight() {
+    	if (m_DroneServicePort.getPortProfile().connector_profiles.length > 0) {
+    		
 
+    	if (flight) {
+    		m_droneServiceBase._ptr().landing();
+    		flight = false;
+    	} else {
+    		m_droneServiceBase._ptr().takeOff();
+//    		m_droneService.takeOff();
+    		flight = true;
+    	}
+    	}
+    }
+    
+    public void landing() {
+    	if (m_DroneServicePort.getPortProfile().connector_profiles.length > 0) {
+    		m_droneServiceBase._ptr().landing();
+    	}
+    }
+    
+    public void takeOff() {
+    	if (m_DroneServicePort.getPortProfile().connector_profiles.length > 0) {
+    		m_droneServiceBase._ptr().takeOff();
+    	}
+    }
+    
+    public void move3D(double x, double y, double z, double yaw) {
+		m_targetVelocity.v.data.vx = x;
+		m_targetVelocity.v.data.vy = y;
+		m_targetVelocity.v.data.vz = z;
+		m_targetVelocity.v.data.va = yaw;
+		m_targetVelocityOut.write();
+    }
+}
+
+class DronePane extends JPanel {
+
+	public BufferedImage img;
+	GridBagConstraints  gbc;
+	GridBagLayout  layout;
+	public void add(int gx, int gy, int gw, int gh, double ww, double wh, JComponent c) {
+		gbc.gridx = gx;
+		gbc.gridy = gy;
+		gbc.gridwidth = gw;
+		gbc.gridheight = gh;
+		gbc.ipadx = 5;
+		gbc.ipady = 5;
+		gbc.weightx = ww;
+		gbc.weighty = wh;
+		gbc.fill = GridBagConstraints.BOTH;
+		layout.setConstraints(c, gbc);
+		add(c);
+	}
+	ARDroneTestImpl rtc;
+	
+	public DronePane(ARDroneTestImpl arDroneTestImpl) {
+		// TODO Auto-generated constructor stub
+		super();
+		rtc = arDroneTestImpl;
+		layout = new GridBagLayout();
+		setLayout(layout);
+		gbc = new GridBagConstraints();
+		img = new BufferedImage(640, 360, BufferedImage.TYPE_3BYTE_BGR);
+		
+		setSize(680, 480);
+		setBounds(0, 0, 640, 360);
+		JPanel imgPane = new JPanel() {
+			@Override
+			public void paint(Graphics g) {
+				if (img != null) {
+					g.drawImage(img, 0, 0, this);
+				}
+			}
+		};
+		
+		
+		imgPane.addMouseListener(new MouseListener() {
+
+			@Override
+			public void mouseClicked(MouseEvent e) {
+				//rtc.landing();
+			}
+
+			@Override
+			public void mousePressed(MouseEvent e) {
+				
+			}
+
+			@Override
+			public void mouseReleased(MouseEvent e) {
+				// TODO Auto-generated method stub
+				
+			}
+
+			@Override
+			public void mouseEntered(MouseEvent e) {
+				// TODO Auto-generated method stub
+				
+			}
+
+			@Override
+			public void mouseExited(MouseEvent e) {
+				// TODO Auto-generated method stub
+				
+			}
+			
+		});
+		
+		add(0, 0, 2, 1, 1.0, 1.0, imgPane);
+		add(0, 1, 1, 1, 1.0, 0, new JLabel("Roll"));
+		JTextField t1 = new JTextField("0.0");
+		t1.setFocusable(false);
+		t1.setEnabled(false);
+		add(1, 1, 1, 1, 1.0, 0, t1);
+		add(0, 2, 1, 1, 1.0, 0, new JLabel("Yaw"));
+		JTextField t2 = new JTextField("0.0");
+		t2.setFocusable(false);
+		t2.setEnabled(false);
+		add(1, 2, 1, 1, 1.0, 0, t2);
+		add(0, 3, 1, 1, 1.0, 0, new JLabel("Pitch"));
+		JTextField t3 = new JTextField("0.0");
+		t3.setFocusable(false);
+		t3.setEnabled(false);
+		add(1, 3, 1, 1, 1.0, 0, t3);
+	}
+	
 }
