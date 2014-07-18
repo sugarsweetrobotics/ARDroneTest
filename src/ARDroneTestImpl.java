@@ -142,6 +142,32 @@ public class ARDroneTestImpl extends DataFlowComponentBase {
 					case KeyEvent.VK_DOWN:
 						move3D(-10, 0, 0, 0);
 						break;
+						
+					case KeyEvent.VK_SPACE:
+						move3D(0, 0, 0, 0);
+						break;
+						
+						
+					case KeyEvent.VK_A:
+						move3D(0, 10, 0, 0);
+						break;
+						
+					case KeyEvent.VK_F:
+						move3D(0, -10, 0, 0);
+						break;
+					case KeyEvent.VK_E:
+						move3D(0, 0, 10, 0);
+						break;
+					case KeyEvent.VK_C:
+						move3D(0, 0, -10, 0);
+						break;
+					case KeyEvent.VK_D:
+						move3D(0, 0, 0, 0);
+						break;
+						
+					default:
+						move3D(0, 0, 0, 0);
+						break;
 					}
 			}
 
